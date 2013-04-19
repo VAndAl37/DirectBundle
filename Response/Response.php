@@ -28,7 +28,6 @@ class Response implements ResponseInterface
     public function setFactory(ResponseFactory $factory)
     {
         $this->factory = $factory;
-        $this->config = $factory->getConfig();
         $this->dispatcher = new EventDispatcher();
         return $this;
     }
@@ -39,6 +38,11 @@ class Response implements ResponseInterface
         return $this;
     }
     
+    public function setConfig(array $config)
+    {
+        $this->config = $config;
+    }
+
     public function extract()
     {
         return $this->formatResponse($this->data);
@@ -47,11 +51,9 @@ class Response implements ResponseInterface
     public function formatResponse(array $root)
     {
         $data = array();
+        $config = isset($this->config['reader']) ? $this->config['reader'] : array();
         
-        $config = $this->factory->getResolver()->getMethodConfig();
-        $config = $config['reader'];
-        
-        if($config['root'])
+        if(isset($config['root']))
         {
             $data[$config['root']] = $root;
         } else {

@@ -1,85 +1,41 @@
 <?php
 namespace Ext\DirectBundle\Router;
 
-
-use Symfony\Bundle\FrameworkBundle\Controller\ControllerResolver as BaseControllerResolver;
-use Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpKernel\Log\LoggerInterface;
-use Symfony\Component\HttpKernel\Bundle\Bundle;
-use Symfony\Component\HttpFoundation\Request as HttpFoundation_Request;
-use Ext\DirectBundle\Api\Api;
+use Symfony\Component\HttpKernel\Controller\ControllerResolverInterface;
+use Symfony\Component\HttpFoundation\Request as HttpRequest;
 
-/**
- * @author Semyon Velichko <semyon@velichko.net>
- */
-class ControllerResolver extends BaseControllerResolver {
-    
-    private $call;
-    private $bundle;
-    private $controller;
-    private $config;
-    private $methodConfigKey;
-    
-    public function __construct(ContainerInterface $container, ControllerNameParser $parser, LoggerInterface $logger = null)
+class ControllerResolver implements ControllerResolverInterface
+{
+    protected $container;
+
+    protected $resolver;
+
+    public function __construct(ContainerInterface $container, ControllerResolverInterface $resolver)
     {
-        $this->kernel = $container->get('kernel');
-        parent::__construct($container, $parser, $logger);
+        $this->container = $container;
+        $this->resolver = $resolver;
     }
-    
-    public function setCall(Call $call)
+
+    // public function setResolver(ControllerResolverInterface $resolver)
+    // {
+    //     $this->resolver = $resolver;
+    // }
+
+    public function getController(HttpRequest $request)
     {
-        $this->call = $call;
-        return $this;
+        return $this->resolver->getController($request);
+        // return call_user_func_array(array($this->resolver, __FUNCTION__), func_get_args());
     }
-    
-    public function getCall()
+
+    public function getArguments(HttpRequest $request, $controller)
     {
-        return $this->call;
+        return $this->resolver->getArguments($request, $controller);
+        // return call_user_func_array(array($this->resolver, __FUNCTION__), func_get_args());
     }
-    
-    public function setBundle(Bundle $bundle)
+
+    public function getRequestFromCall(Call $call)
     {
-        $this->bundle = $bundle;
-        return $this;
-    }
-    
-    public function getBundle()
-    {
-        return $this->bundle;
-    }
-    
-    public function setConfig($config)
-    {
-        $this->config = $config;
-        return $this;
-    }
-    
-    public function getConfig()
-    {
-        return $this->config;
-    }
-    
-    public function setMethodConfigKey($key)
-    {
-        $this->methodConfigKey = $key;
-    }
-    
-    public function getMethodConfigKey()
-    {
-        return $this->methodConfigKey;
-    }
-    
-    public function getMethodConfig()
-    {
-        if($this->getMethodConfigKey())
-            return $this->config['router']['rules'][$this->getMethodConfigKey()];
-    }
-    
-    public function getControllerFromCall(Call $call)
-    {
-        $this->setCall($call);
-        
         $explodeResult = explode('_', $call->getAction());
         
         if(count($explodeResult) <> 2)
@@ -89,79 +45,32 @@ class ControllerResolver extends BaseControllerResolver {
             list($bundle, $controller) = $explodeResult;
             $fullPath = sprintf('%1$sBundle:%2$s:%3$s', $bundle, $controller, $call->getMethod());
         }
-        
-        foreach($this->config['router']['rules'] as $key => $rule)
-        {
-            if(isset($rule['defaults']) && isset($rule['defaults']['_controller']) && $rule['defaults']['_controller'] === $fullPath)
-                $this->setMethodConfigKey($key);
-        }
-        
-        if(!$this->getMethodConfigKey())
-            throw new \BadMethodCallException(sprintf('%1$s does not configured, check config.yml', $fullPath));
-        
-        try {
-            $controller = $this->container->get($call->getAction());
-            $method = $call->getMethod();
-        } catch(\Exception $e)
-        {
-            $bundle = $this->kernel->getBundle(sprintf('%sBundle', $bundle));
-            $this->setBundle($bundle);
-        
-            $controller = sprintf('%s\\Controller\\%sController::%sAction', $bundle->getNamespace(), $controller, $call->getMethod());
 
-            if (is_array($controller) || (is_object($controller) && method_exists($controller, '__invoke'))) {
-                return $controller;
-            }
+        // $api = $this->container->get('ext_direct.api');
 
-            if (false === strpos($controller, ':') && method_exists($controller, '__invoke')) {
-                return new $controller;
-            }
+        // if(!$api->is_remote($call)) {
+        //     throw new \BadMethodCallException(sprintf('%1$s does not configured as remote.', $fullPath));
+        // }
 
-            list($controller, $method) = $this->createController($controller);
-        }
-        
-        if (!method_exists($controller, $method)) {
-            throw new \InvalidArgumentException(sprintf('Method "%s::%s" does not exist.', get_class($controller), $method));
-        }
+        $attributes = array_merge($call->getData(), array(
+            '_controller' => $fullPath
+        ));
 
-        return array($controller, $method);
+        return $this->container->get('request')->duplicate(null, null, $attributes);
     }
-    
-   protected function doGetArguments(HttpFoundation_Request $request, $controller, array $parameters)
-    {
-        if(!$this->call) {
-            throw new \LogicException('$this->call is null, run setCall(Call $call) or getControllerFromCall(Call $call) before use getArguments()');
-        }
-        
-        $attributes = $this->call->getData();
-        $arguments = array();
-        foreach ($parameters as $param) {
-            if(in_array($param->getName(), array('_data', '_list'))) {
-                $arguments[] = $attributes;
-                if('_list' === $param->getName() && !isset($attributes[0])) {
-                    array_pop($arguments);
-                    $arguments[] = array($attributes);
-                }
-            } elseif (array_key_exists($param->getName(), $attributes)) {
-                $arguments[] = $attributes[$param->getName()];
-            } elseif ($param->getClass() && $param->getClass()->isInstance($request)) {
-                $arguments[] = $request;
-            } elseif ($param->isDefaultValueAvailable()) {
-                $arguments[] = $param->getDefaultValue();
-            } else {
-                if (is_array($controller)) {
-                    $repr = sprintf('%s::%s()', get_class($controller[0]), $controller[1]);
-                } elseif (is_object($controller)) {
-                    $repr = get_class($controller);
-                } else {
-                    $repr = $controller;
-                }
 
-                throw new \RuntimeException(sprintf('Controller "%s" requires that you provide a value for the "$%s" argument (because there is no default value or because there is a non optional argument after this one).', $repr, $param->getName()));
-            }
-        }
+    // public function __call($name, $arguments = array())
+    // {
+    //     return call_user_func_array(array($this->resolver, $name), func_get_args());
+    // }
 
-        return $arguments;
-    }
-    
+    // public function __set($name, $value)
+    // {
+    //     $this->resolver->{$name} = $value;
+    // }
+
+    // public function __get($name)
+    // {
+    //     return $this->resolver->{$name};
+    // }
 }

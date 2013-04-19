@@ -11,9 +11,11 @@ use Symfony\Component\HttpFoundation;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 
-use Ext\DirectBundle\Tests\Binder as Test;
+// use Ext\DirectBundle\Tests\Binder as Test;
 use Ext\DirectBundle\Router\Router;
-use Ext\DirectBundle\Response\Basic;
+// use Ext\DirectBundle\Response\Basic;
+
+use JMS\SecurityExtraBundle\Annotation\Secure;
 
 /**
  * @author Semyon Velichko <semyon@velichko.net>
@@ -25,8 +27,8 @@ class DirectController extends Controller
     
     public function __construct(ContainerInterface $container) {
             $this->container = $container;
-            $this->response = new HttpFoundation\Response();
-            $this->response->headers->set('Content-Type', 'text/html');
+            // $this->response = new HttpFoundation\Response();
+            // $this->response->headers->set('Content-Type', 'text/html');
     }
 
     /**
@@ -35,33 +37,41 @@ class DirectController extends Controller
      * @return HttpFoundation\Response 
      */
     public function getApi()
-    {        
-        // instantiate the api object
-        $api = new Api($this->config);
+    {
+        // get the api object
+        $api = $this->get('ext_direct.api');
 
-        $this->response->setContent(sprintf('Ext.ns("%1$s"); %1$s.REMOTING_API = %2$s;', $this->config['basic']['namespace'], $api));
-        $this->response->headers->set('Content-Type', 'text/javascript');
-        return $this->response;
+        $response = new HttpFoundation\Response(sprintf('Ext.ns("%1$s"); %1$s.REMOTING_API = %2$s;', $this->config['basic']['namespace'], $api));
+
+        $response->headers->set('Content-Type', 'text/javascript');
+        return $response;
     }
     
     /**
      * Route the ExtDirect calls.
      *
+     * @Secure(roles="ROLE_USER")
+     * 
      * @param HttpFoundation\Request
      * @return HttpFoundation\Response
      */
     public function route(HttpFoundation\Request $request)
     {
+        // throw new \Exception('ERROR !!!!!!!!!!!!!!!!!!!!!!!!');
+        // return new HttpFoundation\Response('An error occurred', 404);
         // instantiate the router object
         $router = new Router($this->container);
-        $this->response->setContent($router->route());
-        return $this->response;
+        $response = new HttpFoundation\JsonResponse($router->route());
+
+        // $response->setContent($router->route());
+        // $this->response->headers->set('Content-Type', 'application/json');
+        return $response;
     }
     
     public function setConfig($config) {
-        $this->config = array_merge_recursive($config, array('basic' => array('url' => $this->get('router')->generate('ExtDirectBundle_route'))));
+        $this->config = $config;
     }
-    
+   
     public function getConfig()
     {
         return $this->config;

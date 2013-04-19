@@ -3,9 +3,12 @@ namespace Ext\DirectBundle\Router;
 
 use Symfony\Component\DependencyInjection\ContainerAware;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 use Ext\DirectBundle\Response\Exception as ExceptionResponse;
-
+use Ext\DirectBundle\Response\Error as ErrorResponse;
+use Ext\DirectBundle\Response\Response
+;
 /**
  * Router is the ExtDirect Router class.
  *
@@ -45,8 +48,8 @@ class Router
     public function __construct($container)
     {
         $this->container = $container;
-        $this->request = new Request($container->get('request'));
-        $this->resolver = $this->container->get('ext_direct.controller_resolver');
+        $this->request = new Request($container->get('request'), $container->get('ext_direct.api'));
+        $this->resolver = $container->get('ext_direct.controller_resolver');
     }
 
     /**
@@ -60,7 +63,7 @@ class Router
         foreach ($this->request->getCalls() as $call) {
             $batch[] = $this->dispatch($call);
         }
-        return json_encode($batch);
+        return $batch;//json_encode($batch);
     }
 
     /**
@@ -71,28 +74,67 @@ class Router
      */
     private function dispatch($call)
     {
-        $controller = $this->resolver->getControllerFromCall($call);
-        $request = $this->container->get('request');
+        // $this->resolver = $this->container->get('ext_direct.controller_resolver2');
+        $request = $this->resolver->getRequestFromCall($call);
+        $controller = $this->resolver->getController($request);
+        
+        // die(var_dump($controller));
+
+
+        // $controller = $this->resolver->getControllerFromCall($call);
+        // $request = $this->container->get('request');
 
         if (!is_callable($controller)) {
             throw new NotFoundHttpException('Unable to find the controller for action "%s". Maybe you forgot to add the matching route in your routing configuration?', $call->getAction());
         }
         
         $arguments = $this->resolver->getArguments($request, $controller);
-        
+
         if(in_array($this->container->get('kernel')->getEnvironment(), array('dev', 'test')))
         {
             try {
                 $result = call_user_func_array($controller, $arguments);
-            } catch (\Exception $e)
-            {
+            }
+            
+            catch (\Exception $e) {
                 $result = new ExceptionResponse($e);
                 $call->setType('exception');
             }
         } else {
-            $result = call_user_func_array($controller, $arguments);
+            try {
+                $result = call_user_func_array($controller, $arguments);
+            }
+            
+            // catch (NotFoundHttpException $e) {
+            //     $result = array(
+            //         'success' => false,
+            //         'exception' => true,
+            //         'code' => $e->getStatusCode(),
+            //         'msg' => $e->getMessage()
+            //     );
+            //     $call->setType('exception');
+            // }
+            catch (AccessDeniedException $e)
+            {
+                $errors = array();
+                $error = array(
+                    'message'=>'Недостаточно прав для выполнения операции.'
+                );
+                array_push($errors, $error);
+                
+                $result = $this->container->get('ext_direct')
+                    ->createResponse(new ErrorResponse(), $errors);
+            }
+            
+            catch (\Exception $e) {
+                throw new Symfony\Component\HttpKernel\Exception\HttpException(404, "Some description");
+            }
         }
+
+        // $api = $this->container->get('ext_direct.api');
         
+        // $result->setConfig($api[$call->getAction()][$call->getMethod()]);
+        // $call->setApi($api);
         return $call->getResponse($result);
     }
 }

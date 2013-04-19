@@ -14,13 +14,15 @@ class Error extends Response implements ResponseInterface
     
     public function formatResponse(array $data)
     {
-        $config = $this->factory->getResolver()->getMethodConfig();
+        // $config = $this->factory->getResolver()->getMethodConfig();
+		$config = $this->factory->getConfig();
+
         $msg = $this->factory
             ->getContainer()
             ->get('ext_direct.controller')
-            ->render($this->config['error_template'], array('errors' => $data))
+            ->render($config['error_template'], array('errors' => $data))
             ->getContent();
-        return array($config['reader']['successProperty'] => $this->success, 'msg' => $msg);
+        return array($this->config['reader']['successProperty'] => $this->success, 'msg' => $msg);
     }
     
 }

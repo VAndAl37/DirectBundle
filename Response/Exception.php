@@ -28,7 +28,7 @@ class Exception extends Response implements ResponseInterface
     
     public function formatResponse(array $data)
     {
-        return array('message' => sprintf("exception '%s' with message '%s'", get_class($this->getException()), $this->getException()->getMessage()),
+        return array('msg' => sprintf("exception '%s' with message '%s'", get_class($this->getException()), $this->getException()->getMessage()),
                      'where' => sprintf('in %s: %d', $this->getException()->getFile(), $this->getException()->getLine()));
     }
 }

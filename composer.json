@@ -1,9 +1,9 @@
 {
-    "name": "ghua/ext-direct-bundle",
+    "name": "vandal37/ext-direct-bundle",
     "type": "symfony-bundle",
     "description": "ExtDirect implementation for Symfony2",
     "keywords": ["extjs", "extdirect", "symfony2", "bundle"],
-    "homepage": "https://github.com/ghua/DirectBundle",
+    "homepage": "https://github.com/vandal37/DirectBundle",
     "license": "MIT",
     "authors": [
         {

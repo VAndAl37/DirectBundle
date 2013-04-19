@@ -3,7 +3,7 @@ namespace Ext\DirectBundle\Router;
 
 use Ext\DirectBundle\Response\ResponseInterface;
 use Ext\DirectBundle\Response\Exception as ExceptionResponse;
-
+use Ext\DirectBundle\Exception\InvalidJsonException;
 /**
  * Call encapsule an single ExtDirect call.
  *
@@ -53,8 +53,6 @@ class Call
      * @var string
      */
     protected $callType;
-    
-    protected $bundle;
 
     /**
      * Initialize an ExtDirect call.
@@ -64,6 +62,7 @@ class Call
      */
     public function __construct($call, Request $request)
     {
+        // die(var_dump(array($call, $request)));
         $this->request = $request;
         $this->initialize($call);
     }
@@ -121,6 +120,11 @@ class Call
         return $this->type;
     }
 
+    public function setApi($api)
+    {
+        $this->api = $api[$this->action][$this->method];
+    }
+
     /**
      * Return a result wrapper to ExtDirect method call.
      * 
@@ -134,12 +138,13 @@ class Call
                   'tid' => $this->tid,
                   'action' => $this->action,
                   'method' => $this->method);
-            
+        
         if('exception' === $this->type && $result instanceof ExceptionResponse)
             return array_merge($result->extract(), $return);
 
         if($result instanceof ResponseInterface)
         {
+            $result->setConfig($this->api);
             $return['result'] = $result->extract();
         } else {
             $return['result'] = $result;
@@ -158,15 +163,14 @@ class Call
         foreach(array('action', 'method', 'type', 'tid') as $key)
         {
             if(!isset($call[$key]))
-                throw new \Ext\DirectBundle\Exception\InvalidJsonException(sprintf('%s key does not exist', $key));
+                throw new InvalidJsonException(sprintf('%s key does not exist', $key));
             
             $this->$key = $call[$key];
         }
         
-        $this->data   = array();
+        $this->data = array();
         
         if(is_array($call['data']) && !empty($call['data']))
-            $this->data   = array_shift($call['data']);
+            $this->data = array_shift($call['data']);
     }
-    
 }

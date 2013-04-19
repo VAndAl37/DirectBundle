@@ -25,6 +25,7 @@ class ResponseFactory
         $this->request = $request;
         $this->resolver = $resolver;
         $this->container = $container;
+        // die(var_dump($this));
     }
     
     public function setConfig(array $config)

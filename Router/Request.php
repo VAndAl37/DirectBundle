@@ -3,6 +3,7 @@ namespace Ext\DirectBundle\Router;
 
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Ext\DirectBundle\Exception\InvalidJsonException;
+use Ext\DirectBundle\Api\Api;
 
 /**
  * Request encapsule the ExtDirect request call.
@@ -54,12 +55,14 @@ class Request
      */
     protected $files = array();
 
+    protected $api;
+
     /**
      * Initialize the object.
      * 
      * @param Symfony\Component\HttpFoundation\Request $request
      */
-    public function __construct(HttpRequest $request)
+    public function __construct(HttpRequest $request, Api $api)
     {
         // store the symfony request object
         $this->request = $request;
@@ -70,6 +73,8 @@ class Request
         
         foreach($request->files->keys() as $key)
             $this->files[$key] = $request->files->get($key, array());
+
+        $this->api = $api;
     }
 
     /**
@@ -119,7 +124,9 @@ class Request
                 throw new InvalidJsonException(sprintf('I can\'t parse input json: "%s"', $this->rawPost));
             
             foreach ($decoded as $call) {
-                $calls[] = new Call((array)$call, $this);
+                $call = new Call((array)$call, $this);
+                $call->setApi($this->api);
+                $calls[] = $call;
             }
         }
         
@@ -158,5 +165,5 @@ class Request
         if (is_array($value)) {
             array_walk_recursive($value, array($this, 'parseRawToArray'));
         }
-  }
+    }
 }

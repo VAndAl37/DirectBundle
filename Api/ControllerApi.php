@@ -3,13 +3,24 @@ namespace Ext\DirectBundle\Api;
 
 use Symfony\Component\DependencyInjection\Loader\FileLoader;
 
+use Doctrine\Common\Annotations\Reader;
+
+// use Symfony\Component\DependencyInjection\ContainerInterface;
+
 /**
  * ControllerApi encapsulate methods to get the Controller exposed Api.
  *
  * @author Otavio Fernandes <otabio@neton.com.br>
  */
-class ControllerApi
+class ControllerApi extends \ArrayObject //implements \IteratorAggregate, \ArrayAccess
 {
+    /**
+     * Annotation reader.
+     * 
+     * @var Reader
+     */
+    protected $reader;
+
     /**
      * Store the controller reflection object.
      * 
@@ -25,30 +36,26 @@ class ControllerApi
     protected $api;
 
     /**
-     * The application container.
-     *
-     * @var Symfony\Component\DependencyInjection\Container
-     */
-    protected $container;
-
-    /**
      * Initialize the object.
      * 
-     * @param \Symfony\Component\Container $container
+     * @param \Doctrine\Common\Annotations\Reader $reader
      * @param string $controller
      */
-    public function __construct($container, $controller)
+    public function __construct(Reader $reader, $controller)
     {
         try {
             $this->reflection = new \ReflectionClass($controller);
         } catch (Exception $e) {
             // @todo: throw an exception
         }
-        
-        $this->container = $container;
-        $this->remoteAttribute = $container->getParameter('direct.api.remote_attribute');
-        $this->formAttribute = $container->getParameter('direct.api.form_attribute');
-        $this->api = $this->createApi();        
+
+        $this->reader = $reader;
+        $this->api = $this->createApi();
+    }
+
+    public function getIterator()
+    {
+        return new \ArrayIterator($this->api);
     }
 
     /**
@@ -67,7 +74,7 @@ class ControllerApi
      * @return array
      */
     public function getApi()
-    {        
+    {
         return $this->api;
     }
 
@@ -97,11 +104,12 @@ class ControllerApi
             $mApi = $this->getMethodApi($method);
 
             if ($mApi) {
-                $api[] = $mApi;
+                $methodName = str_replace('Action','',$method->getName());
+                $api[$methodName] = $mApi;
             }
         }
 
-        return $api;        
+        return $api;
     }
 
     /**
@@ -113,26 +121,55 @@ class ControllerApi
      */
     private function getMethodApi($method)
     {
-        $class = $method->class;
-        
         $api = false;
+        
+        if (null !== ($remote = $this->reader->getMethodAnnotation($method, 'Ext\DirectBundle\Annotation\Remote'))) {
 
-        if (strlen($method->getDocComment()) > 0) {
-            $doc = $method->getDocComment();
+            $api['len'] = $method->getNumberOfParameters();
+            $api['reader'] = $remote->toArray();
 
-            $isRemote = !!preg_match('/' . $this->remoteAttribute . '/', $doc);
-
-            if ($isRemote) {
-                $api['name'] = str_replace('Action','',$method->getName());
-                $api['len'] = 1;//$method->getNumberOfParameters();
-
-                if(!!preg_match('/' . $this->formAttribute . '/', $doc)) {
-                    $api['formHandler'] = true;
-                }
+            if (null !== ($form = $this->reader->getMethodAnnotation($method, 'Ext\DirectBundle\Annotation\Form'))) {
+                $api['formHandler'] = true;
             }
         }
 
         return $api;
     }
 
+    public function toArray()
+    {   
+        $api = array();
+        foreach ($this->api as $name => $method) {
+            $m = array(
+                'name' => $name,
+                'len' => $method['len']
+            );
+            
+            if(isset($method['formHandler'])) $m['formHandler'] = true;
+            $api[] = $m;
+        }
+
+        return $api;
+    }
+
+    public function offsetSet($offset, $value)
+    {
+        if (is_null($offset)) {
+            $this->api[] = $value;
+        } else {
+            $this->api[$offset] = $value;
+        }
+    }
+    
+    public function offsetGet($offset)
+    {
+        return isset($this->api[$offset]) ? $this->api[$offset] : null;
+    }
+
+    // public function offsetExists($offset) {
+    //     return isset($this->api[$offset]);
+    // }
+    // public function offsetUnset($offset) {
+    //     unset($this->api[$offset]);
+    // }
 }

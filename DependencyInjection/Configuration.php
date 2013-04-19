@@ -40,7 +40,18 @@ class Configuration implements ConfigurationInterface
                     ->end()
                 ->end()
         ->end();
-        
+        // ->arrayNode('annotations')
+        //     ->addDefaultsIfNotSet()
+        //     ->children()
+        //         ->scalarNode('remote_attribute')
+        //             ->defaultValue('@Remote')
+        //         ->end()
+        //         ->scalarNode('form_attribute')
+        //             ->defaultValue('@Form')
+        //         ->end()
+        //     ->end()
+        // ->end();
+
         $this->addRouterSection($rootNode);
         
         return $treeBuilder;

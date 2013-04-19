@@ -1,23 +1,35 @@
 parameters:
     ext_direct.controller.class: Ext\DirectBundle\Controller\DirectController
     ext_direct.response_factory.class: Ext\DirectBundle\Response\ResponseFactory
+    # ext_direct.controller_resolver.class : Ext\DirectBundle\Router\ControllerResolver
     ext_direct.controller_resolver.class : Ext\DirectBundle\Router\ControllerResolver
     ext_direct_test_service.class: Ext\DirectBundle\Controller\ForTestingController
-    
+    ext_direct.api.class: Ext\DirectBundle\Api\Api
+
 services:
     ext_direct.controller:
         class: %ext_direct.controller.class%
         arguments: [ @service_container ]
-        
+
+    # ext_direct.controller_resolver:
+    #     class: %ext_direct.controller_resolver.class%
+    #     arguments: [ @service_container, @controller_name_converter, @monolog.logger.request ]
+
     ext_direct.controller_resolver:
         class: %ext_direct.controller_resolver.class%
-        arguments: [ @service_container, @controller_name_converter, @monolog.logger.request ]
-        
+        arguments: [ @service_container, @controller_resolver ]
+        # calls:
+        #     - [ setResolver, [@controller_resolver] ]
+
     ext_direct:
         class: %ext_direct.response_factory.class%
         scope: request
         arguments: [ @request, @ext_direct.controller_resolver, @service_container ]
-        
+
     ext_direct_test_service:
         class: %ext_direct_test_service.class%
         arguments: [ @service_container ]
+
+    ext_direct.api:
+        class: %ext_direct.api.class%
+        arguments: [ @service_container, @annotation_reader ]
